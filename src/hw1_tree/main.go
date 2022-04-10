@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
-	// "strings"
+	//"strings"
 )
 
 func dirTreeWalker(inPath string, printFiles bool,
@@ -49,33 +49,11 @@ func dirTreeWalker(inPath string, printFiles bool,
 
 func dirTree(out io.Writer, inPath string, printFiles bool) error {
 
-	/*var p []string
-	var files []fs.FileInfo
-	var e error
-	files, e = ioutil.ReadDir(inPath)
-
-	for _, file := range files {
-		if file.IsDir() {
-			p = append(p, file.Name())
-		} else {
-			if file.Size() == 0 {
-				filename := fmt.Sprint(file.Name(), " (empty)")
-				p = append(p, filename)
-			} else {
-				filename := fmt.Sprint(file.Name(), " (", file.Size(), "b)")
-				p = append(p, filename)
-			}
-		}
-	}
-	outputString := strings.Join(p, "\n")
-	outputString += "\n"
-	fmt.Fprintf(out, outputString)*/
 	var outputString string
 	resultMap := make(map[string][]string)
 
 	e := dirTreeWalker(inPath, printFiles, resultMap)
 	for key := range resultMap {
-		// p := strings.Join(key, "\n")
 		outputString += key + "\n"
 	}
 	fmt.Fprintf(out, outputString)
