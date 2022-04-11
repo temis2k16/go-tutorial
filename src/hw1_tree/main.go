@@ -3,61 +3,98 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/fs"
 	"io/ioutil"
 	"os"
-	//"strings"
 )
 
-func dirTreeWalker(inPath string, printFiles bool,
-	// [родитель] наследники (файлы и папки)
-	resultMap map[string][]string) error {
-	var dirs []string
-	var fileAndSize []string
-	var files []fs.FileInfo
-	var e error
-	files, e = ioutil.ReadDir(inPath)
-	if e != nil {
-		return e
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			dirs = append(dirs, file.Name())
-		} else if printFiles {
-			if file.Size() == 0 {
-				filename := fmt.Sprint(file.Name(), " (empty)")
-				fileAndSize = append(fileAndSize, filename)
-			} else {
-				filename := fmt.Sprint(file.Name(), " (", file.Size(), "b)")
-				fileAndSize = append(fileAndSize, filename)
-			}
-		}
-	}
-	inPathChildren := append(dirs, fileAndSize...)
-	resultMap[inPath] = inPathChildren
-
-	for _, p := range dirs {
-		inDir := inPath + "/" + p
-		e = dirTreeWalker(inDir, printFiles, resultMap)
-		if e != nil {
-			return e
-		}
-	}
-	return nil
+type node struct {
+	value    os.FileInfo
+	children []node
 }
 
-func dirTree(out io.Writer, inPath string, printFiles bool) error {
-
-	var outputString string
-	resultMap := make(map[string][]string)
-
-	e := dirTreeWalker(inPath, printFiles, resultMap)
-	for key := range resultMap {
-		outputString += key + "\n"
+func getNodes(path string, withFiles bool) (tree []node, err error) {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return nil, err
 	}
-	fmt.Fprintf(out, outputString)
-	return e
+
+	var subTree []node
+	for _, file := range files {
+		if !withFiles && !file.IsDir() {
+			continue
+		}
+		n := node{
+			value: file,
+		}
+
+		if file.IsDir() {
+			subNodes, err := getNodes(path+string(os.PathSeparator)+file.Name(), withFiles)
+			if err != nil {
+				return nil, err
+			}
+
+			n.children = subNodes
+		}
+		subTree = append(subTree, n)
+	}
+	return subTree, nil
+}
+
+func (t node) Name() (name string) {
+	if t.value.IsDir() {
+		return t.value.Name()
+	} else {
+		return fmt.Sprintf("%s (%s)", t.value.Name(), t.Size())
+	}
+}
+
+func (t node) Size() (size string) {
+	if t.value.Size() == 0 {
+		return "empty"
+	} else {
+		return fmt.Sprintf("%db", t.value.Size())
+	}
+}
+
+func printTree(out io.Writer, tree []node, parentPrefix string) (err error) {
+
+	var (
+		lastIdx     = len(tree) - 1
+		prefix      = "├───"
+		childPrefix = "│\t"
+	)
+
+	for idx, t := range tree {
+
+		if idx == lastIdx {
+			prefix = "└───"
+			childPrefix = "\t"
+		}
+
+		_, err = fmt.Fprint(out, parentPrefix, prefix, t.Name(), "\n")
+		if err != nil {
+			return nil
+		}
+
+		if t.value.IsDir() {
+			err := printTree(out, t.children, parentPrefix+childPrefix)
+			if err != nil {
+				return nil
+			}
+		}
+
+	}
+	return
+}
+
+func dirTree(out io.Writer, path string, withFiles bool) (err error) {
+	fmt.Fprintln(out, path, withFiles)
+	tree, err := getNodes(path, withFiles)
+	if err != nil {
+		return nil
+	}
+	printTree(out, tree, "")
+	return
 }
 
 func main() {
